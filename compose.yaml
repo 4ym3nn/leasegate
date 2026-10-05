@@ -1,0 +1,75 @@
+name: leasegate
+services:
+  postgres:
+    image: postgres:17-alpine@sha256:f02121de6f74d30d8a94cd1d9584125e2178d7e6c377d8130112d4e52d867995
+    environment:
+      POSTGRES_USER: fixture_admin
+      POSTGRES_PASSWORD: ${LEASEGATE_DB_PASSWORD:?run bootstrap}
+      POSTGRES_DB: leasegate
+    ports: ["127.0.0.1:55449:5432"]
+    networks: [backend]
+    volumes: ["data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U fixture_admin -d leasegate]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+  provider:
+    image: leasegate:local
+    command: [serve, --config, /run/config.json]
+    volumes:
+      - ./.local/provider.json:/run/config.json:ro
+      - ./.local/provider.crt:/run/server.crt:ro
+      - ./.local/provider.key:/run/server.key:ro
+      - ./.local/ca.crt:/run/ca.crt:ro
+      - ./.local/provider.secret:/run/provider.secret:ro
+    networks: [backend]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+  control:
+    image: leasegate:local
+    command: [serve, --config, /run/config.json]
+    volumes:
+      - ./.local/control.json:/run/config.json:ro
+      - ./.local/control.crt:/run/server.crt:ro
+      - ./.local/control.key:/run/server.key:ro
+      - ./.local/ca.crt:/run/ca.crt:ro
+      - ./.local/grant.key:/run/grant.key:ro
+      - ./.local/grant.pub:/run/grant.pub:ro
+      - ./.local/audit.key:/run/audit.key:ro
+      - ./.local/release.pub:/run/release.pub:ro
+    ports: ["127.0.0.1:18440:8443"]
+    networks: [backend]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+  gateway-a: &gateway
+    image: leasegate:local
+    command: [serve, --config, /run/config.json]
+    volumes:
+      - ./.local/gateway.json:/run/config.json:ro
+      - ./.local/gateway.crt:/run/server.crt:ro
+      - ./.local/gateway.key:/run/server.key:ro
+      - ./.local/ca.crt:/run/ca.crt:ro
+      - ./.local/grant.pub:/run/grant.pub:ro
+      - ./.local/provider.secret:/run/provider.secret:ro
+    ports: ["127.0.0.1:18441:8443"]
+    networks: [backend, workers]
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 64
+    mem_limit: 128m
+  gateway-b:
+    <<: *gateway
+    ports: ["127.0.0.1:18442:8443"]
+networks:
+  backend: {internal: true}
+  workers: {internal: true}
+volumes:
+  data:

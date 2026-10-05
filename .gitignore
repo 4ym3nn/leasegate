@@ -1,0 +1,6 @@
+.local/
+bin/
+reports/
+integrations/node_modules/
+*.log
+.env
