@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: ${LEASEGATE_DB_PASSWORD:?run bootstrap}
       POSTGRES_DB: leasegate
     ports: ["127.0.0.1:55449:5432"]
-    networks: [backend]
+    networks: [backend, management]
     volumes: ["data:/var/lib/postgresql/data"]
     healthcheck:
       test: [CMD-SHELL, pg_isready -U fixture_admin -d leasegate]
@@ -42,7 +42,7 @@ services:
       - ./.local/audit.key:/run/audit.key:ro
       - ./.local/release.pub:/run/release.pub:ro
     ports: ["127.0.0.1:18440:8443"]
-    networks: [backend]
+    networks: [backend, management]
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -59,7 +59,8 @@ services:
       - ./.local/grant.pub:/run/grant.pub:ro
       - ./.local/provider.secret:/run/provider.secret:ro
     ports: ["127.0.0.1:18441:8443"]
-    networks: [backend, workers]
+    networks: [backend, workers, management]
+    sysctls: {net.ipv4.ip_forward: "0"}
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -69,6 +70,7 @@ services:
     <<: *gateway
     ports: ["127.0.0.1:18442:8443"]
 networks:
+  management: {}
   backend: {internal: true}
   workers: {internal: true}
 volumes:

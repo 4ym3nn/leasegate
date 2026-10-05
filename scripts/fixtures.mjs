@@ -6,7 +6,10 @@ import { resolve } from 'node:path';
 const local = resolve('.local');
 mkdirSync(local, { recursive: true, mode: 0o700 });
 chmodSync(local, 0o700);
-const save = (name, data, mode = 0o444) => writeFileSync(`${local}/${name}`, data, { mode });
+const save = (name, data, mode = 0o644) => {
+  if (existsSync(`${local}/${name}`)) chmodSync(`${local}/${name}`, mode);
+  writeFileSync(`${local}/${name}`, data, { mode });
+};
 const json = (name, value) => save(name, JSON.stringify(value, null, 2) + '\n');
 const openssl = (...args) => execFileSync('openssl', args, { stdio: ['ignore', 'pipe', 'pipe'] });
 if (!existsSync(`${local}/ca.key`)) {
@@ -16,6 +19,7 @@ if (!existsSync(`${local}/ca.key`)) {
 function certificate(name, tenant, kind, identity, server = false) {
   if (!/^[a-zA-Z0-9_-]+$/.test(name + tenant + identity)) throw new Error('invalid fixture identity');
   const base = `${local}/${name}`;
+  if (existsSync(`${base}.key`)) chmodSync(`${base}.key`, 0o600);
   const uri = `spiffe://leasegate.local/tenant/${tenant}/${kind}/${identity}`;
   const dns = server ? `,DNS:localhost,IP:127.0.0.1,DNS:${name}${name === 'gateway' ? ',DNS:gateway-a,DNS:gateway-b' : ''}` : '';
   save(`${name}.ext`, `basicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature\nextendedKeyUsage=clientAuth${server ? ',serverAuth' : ''}\nsubjectAltName=URI:${uri}${dns}\n`);
@@ -24,10 +28,11 @@ function certificate(name, tenant, kind, identity, server = false) {
   chmodSync(`${base}.key`, 0o444);
 }
 
-if (process.argv[2] === 'job') {
+if (process.argv[2] === 'job' || process.argv[2] === 'user') {
+  const kind = process.argv[2];
   const [id, tenant = 'acme', name = `job-${id}`] = process.argv.slice(3);
-  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error('job UUID required');
-  certificate(name, tenant, 'job', id);
+  if (kind === 'job' && !/^[0-9a-f-]{36}$/.test(id)) throw new Error('job UUID required');
+  certificate(name, tenant, kind, id);
   process.exit(0);
 }
 for (const name of ['control', 'gateway', 'provider']) certificate(name, 'platform', 'user', name, true);

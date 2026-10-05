@@ -1,0 +1,49 @@
+name: Verify
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: '1.27.x'
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: integrations/package-lock.json
+      - name: Unit tests, race detector and static checks
+        run: make test check
+      - name: Go dependency vulnerability scan
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.8.0 ./...
+      - name: Verify private integration snapshots
+        working-directory: integrations/vendor
+        run: sha256sum -c SHA256SUMS
+      - name: Integration dependencies
+        run: npm ci --prefix integrations --ignore-scripts --no-audit --no-fund
+      - name: Integration dependency vulnerability scan
+        run: npm audit --prefix integrations --omit=dev --audit-level=moderate
+      - name: Two-gateway integration and restricted container execution
+        run: make demo
+      - name: Retain synthetic test reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: leasegate-test-reports
+          path: reports/
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Stop fixture services
+        if: always()
+        run: test ! -f .local/demo.env || make clean-services

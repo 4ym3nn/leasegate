@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+if [ -n "$(git status --porcelain)" ]; then
+  echo 'Commit source changes before running the demo so the signed build statement identifies the actual source revision.' >&2
+  exit 1
+fi
 node scripts/fixtures.mjs
+npm ci --prefix integrations --ignore-scripts --no-audit --no-fund
 docker compose --env-file .local/demo.env up -d --wait postgres
 bin/leasegate init --config .local/admin.json
 docker build --quiet -t leasegate:local . > .local/image-id

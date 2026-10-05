@@ -1,0 +1,10 @@
+{
+  "name": "leasegate-integration-checks",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "authority-boundary": "file:vendor/authority-boundary-0.2.1.tgz",
+    "authztrace": "file:vendor/authztrace-0.1.0.tgz"
+  }
+}
