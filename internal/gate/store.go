@@ -52,7 +52,13 @@ func (s *Store) transaction(ctx context.Context, fn func(pgx.Tx) error) error {
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback(context.WithoutCancel(ctx))
+	defer func() {
+		// A cancelled request still needs rollback, but a broken database
+		// connection must not leave cleanup waiting without a deadline.
+		cleanup, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		_ = tx.Rollback(cleanup)
+	}()
 	if _, err = tx.Exec(ctx, `SELECT pg_advisory_xact_lock(70421001)`); err != nil {
 		return err
 	}
